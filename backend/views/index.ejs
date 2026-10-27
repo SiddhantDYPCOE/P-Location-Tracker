@@ -3,14 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f7f8fc">
+    <meta name="color-scheme" content="light">
+    <title>Location Tracker</title>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
     <link rel="stylesheet" href="/css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <title>Document</title>
 </head>
 <body>
-    <div id="map"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet-src.min.js" integrity="sha512-3/WyQrhTdqSVmSifQS62akgtNBhZha2lS44TnoN9Jk3J01FvsKK4suVmz6t5FtccGb5iJw58GoFhBjPE5EPc8Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.esm.min.js" integrity="sha512-GQ74pH/qf/bxye7SaDYq4uIbpXe08OC5tWNxw7vKaNuDUTcgK6SeBUwZffDsWFX7fWeLdvmbiH4T7qJNYp/D2g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script type=module src="/js/script.js"></script>
+    <div class="app-shell">
+        <header class="topbar">
+            <a class="brand" href="/" aria-label="Location Tracker home">
+                <span class="brand-mark" aria-hidden="true">⌖</span>
+                <span class="brand-copy">
+                    <strong>Location Tracker</strong>
+                    <small>Explore together, wherever you go</small>
+                </span>
+            </a>
+            <nav class="header-actions" aria-label="Main navigation">
+                <span id="connection-status" class="connection-pill" role="status">
+                    <span class="connection-dot" aria-hidden="true"></span> Connecting...
+                </span>
+                <button id="share-location" class="button button-share" type="button">Share location</button>
+                <a class="button button-quiet" href="/friends">Friends</a>
+                <button id="logout-button" class="button button-logout" type="button">Log out</button>
+            </nav>
+        </header>
+
+        <main class="dashboard">
+            <aside class="sidebar" aria-label="Journey controls">
+                <section class="welcome-panel">
+                    <span class="eyebrow">YOUR SPACE</span>
+                    <h1>Where to next?</h1>
+                    <p>Share your location and plan journeys with the people who matter.</p>
+                </section>
+
+                <section class="journey-card" id="journey-panel">
+                    <div class="card-heading">
+                        <div>
+                            <span class="eyebrow">JOURNEY PLANNER</span>
+                            <h2>My journey</h2>
+                        </div>
+                        <span id="journey-badge" class="journey-badge">Inactive</span>
+                    </div>
+                    <p id="journey-status" class="journey-status">You are not sharing a journey.</p>
+
+                    <button id="plan-journey-button" class="button button-primary plan-button" type="button" aria-expanded="false" aria-controls="journey-planner">
+                        <span class="button-symbol" aria-hidden="true">＋</span> Plan a journey
+                    </button>
+
+                    <div id="journey-planner" class="journey-planner hidden">
+                        <form id="destination-form" class="search-form">
+                            <label for="destination-input">Destination</label>
+                            <div class="input-shell">
+                                <span aria-hidden="true" class="input-symbol">⌕</span>
+                                <input id="destination-input" type="search" placeholder="Search a place or address" autocomplete="off" required>
+                            </div>
+                            <div class="planner-buttons">
+                                <button id="search-button" class="button button-search" type="submit">Search places</button>
+                                <button id="select-on-map" class="button button-map-select" type="button" aria-pressed="false">
+                                    <span class="map-select-icon" aria-hidden="true">＋</span>
+                                    <span class="map-select-label">Select on map</span>
+                                </button>
+                            </div>
+                        </form>
+                        <p class="search-hint">Search for a place or select a point directly on the map.</p>
+                        <div id="search-results" class="search-results hidden" aria-live="polite"></div>
+                        <div class="travel-modes" aria-label="Travel mode">
+                            <button class="mode-button active" data-mode="car" type="button"><span aria-hidden="true">🚗</span> Drive</button>
+                            <button class="mode-button" data-mode="bike" type="button"><span aria-hidden="true">🚲</span> Cycle</button>
+                            <button class="mode-button" data-mode="foot" type="button"><span aria-hidden="true">🚶</span> Walk</button>
+                        </div>
+                        <div id="route-summary" class="route-summary hidden" aria-live="polite">
+                            <div class="route-summary-icon" aria-hidden="true">↗</div>
+                            <div><strong id="route-distance"></strong><span id="route-duration"></span></div>
+                        </div>
+                        <button id="clear-route" class="clear-route hidden" type="button">Clear destination</button>
+                    </div>
+
+                    <div class="journey-actions">
+                        <button id="start-journey" class="button button-primary" type="button" disabled>Start journey</button>
+                        <div class="journey-secondary-actions">
+                            <button id="complete-journey" class="button button-secondary" type="button" disabled>Complete</button>
+                            <button id="cancel-journey" class="button button-danger" type="button" disabled>Cancel</button>
+                        </div>
+                    </div>
+                    <p id="location-message" class="location-message hidden" role="status" aria-live="polite"></p>
+                </section>
+
+                <section class="tip-card">
+                    <span class="tip-icon" aria-hidden="true">✦</span>
+                    <div><h3>Stay connected</h3><p>You control when your location is shared. Stop sharing whenever you want.</p></div>
+                </section>
+                <p class="sidebar-footer">Made for the journeys that bring us together.</p>
+            </aside>
+
+            <section class="map-section" aria-label="Live map">
+                <div class="map-heading">
+                    <div><span class="eyebrow">LIVE MAP</span><h2>Explore your surroundings</h2><p>See the route. Make the journey yours.</p></div>
+                    <button id="my-location" class="button my-location-button" type="button" disabled><span aria-hidden="true">◎</span> My location</button>
+                </div>
+                <div id="map" aria-label="Interactive map"></div>
+                <div class="map-legend"><span class="legend-dot" aria-hidden="true"></span> OpenStreetMap</div>
+            </section>
+        </main>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/js/script.js"></script>
 </body>
 </html>

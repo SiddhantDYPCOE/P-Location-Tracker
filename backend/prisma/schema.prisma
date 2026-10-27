@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum JourneyStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum JourneyEventType {
+  JOURNEY_STARTED
+  LOCATION_UPDATED
+  DESTINATION_CHANGED
+  JOURNEY_COMPLETED
+  JOURNEY_CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sentFriendRequests     Friendship[] @relation("FriendshipRequester")
+  receivedFriendRequests Friendship[] @relation("FriendshipAddressee")
+
+  journeys      Journey[]
+  journeyEvents JourneyEvent[] @relation("JourneyEventActor")
+
+  @@index([name])
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  requester User @relation("FriendshipRequester",fields: [requesterId],references: [id],onDelete: Cascade)
+
+  addressee User @relation("FriendshipAddressee",fields: [addresseeId],references: [id],onDelete: Cascade )
+
+  @@unique([requesterId, addresseeId])
+  @@index([requesterId, status])
+  @@index([addresseeId, status])
+}
+
+model Journey {
+  id                String        @id @default(cuid())
+  userId            String
+  status            JourneyStatus @default(ACTIVE)
+
+  destinationName   String
+  destinationLat    Float
+  destinationLng    Float
+
+  startLat          Float
+  startLng          Float
+
+  currentLat        Float?
+  currentLng        Float?
+  lastLocationAt    DateTime?
+
+  startedAt         DateTime      @default(now())
+  endedAt           DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events JourneyEvent[]
+
+  @@index([userId, status])
+  @@index([status, startedAt])
+}
+
+model JourneyEvent {
+  id        String           @id @default(cuid())
+  journeyId String
+  actorId   String
+  type      JourneyEventType
+  message   String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  actor   User    @relation("JourneyEventActor",fields: [actorId],references: [id], onDelete: Cascade)
+
+  @@index([journeyId, createdAt])
+  @@index([actorId, createdAt])
+}
