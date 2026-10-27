@@ -370,17 +370,15 @@ app.get("/", requirePageAuth, (req, res) => {
 
 // Login page
 app.get("/login", (req, res) => {
-    res.sendFile(
-        path.join(__dirname, "views", "login.html")
-    );
+    res.render("auth");
 });
 
-// Registration uses the same page and form
+// Optional registration URL
 app.get("/register", (req, res) => {
     res.redirect("/login");
 });
 
-// Main map page — authentication required
+// Main map page
 app.get("/", requirePageAuth, (req, res) => {
     res.render("index");
 });

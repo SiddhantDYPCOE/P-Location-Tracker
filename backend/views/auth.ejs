@@ -1,47 +1,99 @@
-
+```ejs
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Login | Location Tracker</title>
+
   <link rel="stylesheet" href="/css/auth.css" />
 </head>
+
 <body>
   <main class="auth-container">
     <section class="auth-card">
       <h1>Location Tracker</h1>
-      <p class="subtitle">Sign in to continue to your map.</p>
 
+      <p class="subtitle">
+        Sign in to continue to your map.
+      </p>
+
+      <!-- Login / Register Tabs -->
       <div class="auth-tabs">
-        <button type="button" id="login-tab" class="active">Login</button>
-        <button type="button" id="register-tab">Register</button>
+        <button
+          type="button"
+          id="login-tab"
+          class="active"
+        >
+          Login
+        </button>
+
+        <button
+          type="button"
+          id="register-tab"
+        >
+          Register
+        </button>
       </div>
 
+      <!-- Authentication Form -->
       <form id="auth-form">
+        <!-- Name: visible only during registration -->
         <div id="name-group" class="form-group hidden">
-          <label for="name">Name</label>
-          <input id="name" name="name" autocomplete="name" />
+          <label for="name">Full Name</label>
+
+          <input
+            id="name"
+            name="name"
+            type="text"
+            placeholder="Enter your full name"
+            autocomplete="name"
+          />
         </div>
 
+        <!-- Email -->
         <div class="form-group">
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email"
-            autocomplete="email" required />
+          <label for="email">Email Address</label>
+
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="Enter your email"
+            autocomplete="email"
+            required
+          />
         </div>
 
+        <!-- Password -->
         <div class="form-group">
           <label for="password">Password</label>
-          <input id="password" name="password" type="password"
-            autocomplete="current-password" required minlength="8" />
+
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Enter your password"
+            autocomplete="current-password"
+            minlength="8"
+            required
+          />
         </div>
 
-        <p id="auth-message" role="status"></p>
-        <button id="submit-button" type="submit">Login</button>
+        <!-- Success and error messages -->
+        <p id="auth-message" role="status" aria-live="polite"></p>
+
+        <!-- Submit -->
+        <button id="submit-button" type="submit">
+          Login
+        </button>
       </form>
     </section>
   </main>
 
+  <!-- Existing authentication logic -->
   <script type="module" src="/js/pages/auth.page.js"></script>
 </body>
 </html>
+```
