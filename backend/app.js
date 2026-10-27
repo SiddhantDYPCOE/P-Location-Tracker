@@ -1,85 +1,19 @@
-// import express from "express";
-// import { Server } from "socket.io";
-// import path from "path";
-// import http from "http";
-// import { fileURLToPath } from "url";
-
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// const app = express();
-// const server = http.createServer(app);
-// const io = new Server(server);
-
-// app.set("view engine", "ejs");
-// app.use(express.static(path.join(__dirname, "public")));
-
-// app.get("/", (req, res) => {
-//     res.render("index");
-// });
-
-// io.on("connection", (socket) => {
-//     console.log("User connected:", socket.id);
-
-//     socket.on("send-location", (data) => {
-//         if (
-//             typeof data?.latitude !== "number" ||
-//             typeof data?.longitude !== "number" ||
-//             !Number.isFinite(data.latitude) ||
-//             !Number.isFinite(data.longitude) ||
-//             data.latitude < -90 ||
-//             data.latitude > 90 ||
-//             data.longitude < -180 ||
-//             data.longitude > 180
-//         ) {
-//             return;
-//         }
-
-//         socket.broadcast.emit("receive-location", {
-//             id: socket.id,
-//             latitude: data.latitude,
-//             longitude: data.longitude,
-//         });
-
-//         // Send the current user's location back to them too.
-//         socket.emit("receive-location", {
-//             id: socket.id,
-//             latitude: data.latitude,
-//             longitude: data.longitude,
-//         });
-//     });
-
-//     socket.on("stop-sharing", () => {
-//     console.log("User stopped sharing:", socket.id);
-
-//     io.emit("user-disconnected", socket.id);
-// });
-
-//     socket.on("disconnect", () => {
-//         console.log("User disconnected:", socket.id);
-//         io.emit("user-disconnected", socket.id);
-//     });
-    
-// });
-
-// server.listen(3000, "0.0.0.0", () => {
-//   console.log("Server is running on port 3000");
-//   console.log("Access on your network: http://192.168.1.22:3000");
-// });
-
 
 import express from "express";
 import { Server } from "socket.io";
 import path from "path";
+import http from "http";
 import https from "https";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { getRoute } from "./public/js/services/route.service.js";
 import cookieParser from "cookie-parser";
+
+import { getRoute } from "./public/js/services/route.service.js";
 
 import authRoutes from "./src/modules/auth/auth.routes.js";
 import friendsRoutes from "./src/modules/friends/friends.routes.js";
 import journeysRoutes from "./src/modules/journeys/journey.routes.js";
+
 import { authenticateSocket } from "./src/middleware/socket-auth.middleware.js";
 import { registerJourneySocket } from "./src/modules/journeys/journey.socket.js";
 import { requirePageAuth } from "./src/middleware/require-page-auth.middleware.js";
@@ -88,42 +22,83 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
 app.use(express.json());
 app.use(cookieParser());
 
+// --------------------------------------------------
+// SERVER CONFIGURATION
+// Render: HTTP using Render's assigned PORT.
+// Local: HTTPS when local certificates are available.
+// --------------------------------------------------
 
-// HTTPS certificates are stored in D:\P-leaflet
-const server = https.createServer(
-    {
-        key: fs.readFileSync(
-            path.resolve(__dirname, "../192.168.1.22+2-key.pem")
-        ),
-        cert: fs.readFileSync(
-            path.resolve(__dirname, "../192.168.1.22+2.pem")
-        ),
-    },
-    app
+const isProduction =
+    process.env.NODE_ENV === "production" ||
+    process.env.RENDER === "true" ||
+    Boolean(process.env.RENDER_SERVICE_ID);
+
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = "0.0.0.0";
+
+const keyPath = path.resolve(
+    __dirname,
+    "../192.168.1.22+2-key.pem"
 );
 
+const certPath = path.resolve(
+    __dirname,
+    "../192.168.1.22+2.pem"
+);
+
+let server;
+let protocol = "HTTP";
+
+if (
+    !isProduction &&
+    fs.existsSync(keyPath) &&
+    fs.existsSync(certPath)
+) {
+    // Local development with HTTPS certificates.
+    server = https.createServer(
+        {
+            key: fs.readFileSync(keyPath),
+            cert: fs.readFileSync(certPath),
+        },
+        app
+    );
+
+    protocol = "HTTPS";
+} else {
+    // Render terminates public HTTPS and forwards HTTP to this service.
+    server = http.createServer(app);
+}
+
 const io = new Server(server);
+
 io.use(authenticateSocket);
+
+const journeyIo = io.of("/journeys");
+journeyIo.use(authenticateSocket);
+
+registerJourneySocket(journeyIo);
+
+// --------------------------------------------------
+// EXPRESS CONFIGURATION
+// --------------------------------------------------
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// --------------------------------------------------
+// GEOCODING
+// --------------------------------------------------
 
 const geocodeCache = new Map();
 
 let geocodeQueue = Promise.resolve();
 let lastGeocodeRequestAt = 0;
-
-const journeyIo = io.of("/journeys");
-
-journeyIo.use(authenticateSocket);
-
-registerJourneySocket(journeyIo);
 
 app.get("/api/geocode", async (req, res) => {
     const query = String(req.query.q || "").trim();
@@ -136,6 +111,7 @@ app.get("/api/geocode", async (req, res) => {
 
     try {
         const url = new URL("https://photon.komoot.io/api/");
+
         url.searchParams.set("q", query);
         url.searchParams.set("limit", "6");
         url.searchParams.set("lang", "en");
@@ -176,7 +152,7 @@ app.get("/api/geocode", async (req, res) => {
 
                 const address = [
                     properties.street &&
-                        properties.street !== name
+                    properties.street !== name
                         ? properties.street
                         : null,
                     properties.city ||
@@ -188,23 +164,30 @@ app.get("/api/geocode", async (req, res) => {
 
                 return {
                     name,
-                    displayName: [...new Set([name, ...address])].join(", "),
+                    displayName: [
+                        ...new Set([name, ...address]),
+                    ].join(", "),
                     latitude,
                     longitude,
                 };
             });
 
         res.set("Cache-Control", "no-store");
+
         return res.json(results);
     } catch (error) {
         console.error("Autocomplete failed:", error.message);
 
         return res.status(502).json({
-            message: "Suggestions are temporarily unavailable. Please try again.",
+            message:
+                "Suggestions are temporarily unavailable. Please try again.",
         });
     }
 });
 
+// --------------------------------------------------
+// REVERSE GEOCODING
+// --------------------------------------------------
 
 app.get("/api/reverse-geocode", async (req, res) => {
     const latitude = Number(req.query.lat);
@@ -222,13 +205,18 @@ app.get("/api/reverse-geocode", async (req, res) => {
     }
 
     try {
-        const url = new URL("https://photon.komoot.io/reverse");
+        const url = new URL(
+            "https://photon.komoot.io/reverse"
+        );
+
         url.searchParams.set("lat", String(latitude));
         url.searchParams.set("lon", String(longitude));
 
         const response = await fetch(url, {
             signal: AbortSignal.timeout(10000),
-            headers: { Accept: "application/json" },
+            headers: {
+                Accept: "application/json",
+            },
         });
 
         if (!response.ok) {
@@ -257,10 +245,12 @@ app.get("/api/reverse-geocode", async (req, res) => {
             properties?.state,
             properties?.country,
         ]
-            .filter((value, index, array) =>
-                value && array.indexOf(value) === index
+            .filter(
+                (value, index, array) =>
+                    value && array.indexOf(value) === index
             )
-            .join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+            .join(", ") ||
+            `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 
         return res.json({
             name,
@@ -269,14 +259,21 @@ app.get("/api/reverse-geocode", async (req, res) => {
             longitude,
         });
     } catch (error) {
-        console.error("Reverse geocoding failed:", error.message);
+        console.error(
+            "Reverse geocoding failed:",
+            error.message
+        );
 
         return res.status(502).json({
-            message: "Unable to identify this location right now.",
+            message:
+                "Unable to identify this location right now.",
         });
     }
 });
 
+// --------------------------------------------------
+// CLIENT CONFIGURATION
+// --------------------------------------------------
 
 app.get("/api/config", (req, res) => {
     res.set("Cache-Control", "no-store");
@@ -290,6 +287,11 @@ app.get("/api/config", (req, res) => {
         ),
     });
 });
+
+// --------------------------------------------------
+// ROUTE CALCULATION
+// --------------------------------------------------
+
 app.post("/api/route", async (req, res) => {
     const {
         startLatitude,
@@ -318,7 +320,8 @@ app.post("/api/route", async (req, res) => {
         Math.abs(endLongitude) > 180
     ) {
         return res.status(400).json({
-            message: "Valid numeric route coordinates are required.",
+            message:
+                "Valid numeric route coordinates are required.",
         });
     }
 
@@ -339,24 +342,36 @@ app.post("/api/route", async (req, res) => {
 
         return res.json(route);
     } catch (error) {
-        console.error("Route request failed:", error.message);
+        console.error(
+            "Route request failed:",
+            error.message
+        );
 
         return res.status(502).json({
-            message: error.message === "No route found for this travel mode."
-                ? error.message
-                : "Routing service is temporarily unavailable.",
+            message:
+                error.message ===
+                "No route found for this travel mode."
+                    ? error.message
+                    : "Routing service is temporarily unavailable.",
         });
     }
 });
 
+// --------------------------------------------------
+// PAGE AND API ROUTES
+// --------------------------------------------------
 
 app.get("/", requirePageAuth, (req, res) => {
-  res.render("index");
+    res.render("index");
 });
 
 app.use("/api/auth", authRoutes);
 app.use("/api/friends", friendsRoutes);
 app.use("/api/journeys", journeysRoutes);
+
+// --------------------------------------------------
+// SOCKET.IO LOCATION SHARING
+// --------------------------------------------------
 
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -381,26 +396,52 @@ io.on("connection", (socket) => {
             longitude: data.longitude,
         };
 
-        // Send the location to other connected users.
-        socket.broadcast.emit("receive-location", locationData);
+        // Notify other connected users.
+        socket.broadcast.emit(
+            "receive-location",
+            locationData
+        );
 
-        // Send the current user's location back to them.
+        // Echo the location to the sender.
         socket.emit("receive-location", locationData);
     });
 
     socket.on("stop-sharing", () => {
-    console.log("User stopped sharing:", socket.id);
-    io.emit("user-disconnected", socket.id);
-});
+        console.log(
+            "User stopped sharing:",
+            socket.id
+        );
+
+        io.emit("user-disconnected", socket.id);
+    });
 
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
+
         io.emit("user-disconnected", socket.id);
     });
 });
 
-server.listen(3000, "0.0.0.0", () => {
-    console.log("HTTPS server running on port 3000");
-    console.log("Open on this computer: https://localhost:3000");
-    console.log("Open on your network: https://192.168.1.22:3000");
+// --------------------------------------------------
+// START SERVER
+// --------------------------------------------------
+
+server.listen(PORT, HOST, () => {
+    console.log(
+        `${protocol} server running on ${HOST}:${PORT}`
+    );
+
+    if (!isProduction) {
+        console.log(
+            `Local URL: ${protocol.toLowerCase()}://localhost:${PORT}`
+        );
+    }
+});
+
+// --------------------------------------------------
+// SERVER ERRORS
+// --------------------------------------------------
+
+server.on("error", (error) => {
+    console.error("Server error:", error);
 });
