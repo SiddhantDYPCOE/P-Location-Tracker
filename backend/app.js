@@ -364,7 +364,31 @@ app.post("/api/route", async (req, res) => {
 app.get("/", requirePageAuth, (req, res) => {
     res.render("index");
 });
+// --------------------------------------------------
+// PAGE AND API ROUTES
+// --------------------------------------------------
 
+// Login page
+app.get("/login", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "views", "login.html")
+    );
+});
+
+// Registration uses the same page and form
+app.get("/register", (req, res) => {
+    res.redirect("/login");
+});
+
+// Main map page — authentication required
+app.get("/", requirePageAuth, (req, res) => {
+    res.render("index");
+});
+
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/friends", friendsRoutes);
+app.use("/api/journeys", journeysRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/friends", friendsRoutes);
 app.use("/api/journeys", journeysRoutes);
